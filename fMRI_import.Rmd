@@ -1,0 +1,209 @@
+---
+title: "fMRI data import"
+date: "`r format(Sys.time(), '%d/%m/%Y')`"
+author: "Ludovica Nucci (Start 23/03/2020; language: it)"
+output: 
+  html_document: 
+    fig_height: 7
+    fig_width: 10
+    highlight: tango
+    theme: cerulean
+    toc: true
+editor_options: 
+  chunk_output_type: console
+---
+
+# Dati
+
+Per raccogliere più soggetti, inizia eseguendo questo chunk, che cancella tutto il workspace, imposta la directory corrente nella cartella dove si trova il file, e carica le librerie necessarie.
+
+```{r preamble, message=FALSE, warning=FALSE}
+library(rstudioapi)
+cat("\f")
+rm(list=ls())
+current_path <- getActiveDocumentContext()$path
+setwd(dirname(current_path )); print(getwd())
+
+library(neurobase)
+library(oro.nifti)
+```
+
+Effettuo le seguenti operazioni con ogni soggetto:
+
+1.) I dati (file .nii scaricati, rinominati per soggetto) sono in una cartella nella directory corrente, chiamata "tfMRI_MOTOR_LR"
+
+2.) Si trasformano le immagini nii in array
+
+3.) L'array viene rinominato facendogli seguire il codice del soggetto (es: ar_100206), e salvato nella cartella creata al punto 1, come sub_codice.soggetto (es: sub_100206.RData). In questo modo, per ogni soggetto caricheremo soltanto l'array.
+
+
+```{r sub_100206}
+nii = readNIfTI("./tfMRI_MOTOR_LR/tfMRI_MOTOR_LR_100206.nii")
+ar = array(c(nii), c(902629, 284))
+x = rep(1:91,109*91)
+y = rep(rep(1:109, length.out=91*109, each=91),91)
+z = rep(1:91, length.out=91*109*91, each=91*109)
+ar = cbind(x,y,z,ar)
+ar = as.data.frame(ar)
+index = which(rowMeans(ar[,-c(1,2,3)])!=0)
+ar = ar[index,]
+
+ar_100206 = ar
+rm(ar)
+save(ar_100206, file = "./tfMRI_MOTOR_LR/sub_100206.RData")
+```
+
+
+```{r sub_100307}
+library(rstudioapi)
+cat("\f")
+rm(list=ls())
+current_path <- getActiveDocumentContext()$path
+setwd(dirname(current_path )); print(getwd())
+
+library(neurobase)
+library(oro.nifti)
+
+nii = readNIfTI("./tfMRI_MOTOR_LR/tfMRI_MOTOR_LR_100307.nii")
+ar = array(c(nii), c(902629, 284))
+x = rep(1:91,109*91)
+y = rep(rep(1:109, length.out=91*109, each=91),91)
+z = rep(1:91, length.out=91*109*91, each=91*109)
+ar = cbind(x,y,z,ar)
+ar = as.data.frame(ar)
+index = which(rowMeans(ar[,-c(1,2,3)])!=0)
+ar = ar[index,]
+
+ar_100307 = ar
+rm(ar)
+save(ar_100307, file = "./tfMRI_MOTOR_LR/sub_100307.RData")
+```
+
+
+
+```{r sub_100408}
+library(rstudioapi)
+cat("\f")
+rm(list=ls())
+current_path <- getActiveDocumentContext()$path
+setwd(dirname(current_path )); print(getwd())
+
+library(neurobase)
+library(oro.nifti)
+
+nii = readNIfTI("./tfMRI_MOTOR_LR/tfMRI_MOTOR_LR_100408.nii")
+ar = array(c(nii), c(902629, 284))
+x = rep(1:91,109*91)
+y = rep(rep(1:109, length.out=91*109, each=91),91)
+z = rep(1:91, length.out=91*109*91, each=91*109)
+ar = cbind(x,y,z,ar)
+ar = as.data.frame(ar)
+index = which(rowMeans(ar[,-c(1,2,3)])!=0)
+ar = ar[index,]
+
+ar_100408 = ar
+rm(ar)
+save(ar_100408, file = "./tfMRI_MOTOR_LR/sub_100408.RData")
+```
+
+
+
+```{r sub_100610}
+library(rstudioapi)
+cat("\f")
+rm(list=ls())
+current_path <- getActiveDocumentContext()$path
+setwd(dirname(current_path )); print(getwd())
+
+library(neurobase)
+library(oro.nifti)
+
+nii = readNIfTI("./tfMRI_MOTOR_LR/tfMRI_MOTOR_LR_100610.nii")
+ar = array(c(nii), c(902629, 284))
+x = rep(1:91,109*91)
+y = rep(rep(1:109, length.out=91*109, each=91),91)
+z = rep(1:91, length.out=91*109*91, each=91*109)
+ar = cbind(x,y,z,ar)
+ar = as.data.frame(ar)
+index = which(rowMeans(ar[,-c(1,2,3)])!=0)
+ar = ar[index,]
+
+ar_100610 = ar
+rm(ar)
+save(ar_100610, file = "./tfMRI_MOTOR_LR/sub_100610.RData")
+```
+
+
+
+```{r sub_101006}
+library(rstudioapi)
+cat("\f")
+rm(list=ls())
+current_path <- getActiveDocumentContext()$path
+setwd(dirname(current_path )); print(getwd())
+
+library(neurobase)
+library(oro.nifti)
+
+nii = readNIfTI("./tfMRI_MOTOR_LR/tfMRI_MOTOR_LR_101006.nii")
+ar = array(c(nii), c(902629, 284))
+x = rep(1:91,109*91)
+y = rep(rep(1:109, length.out=91*109, each=91),91)
+z = rep(1:91, length.out=91*109*91, each=91*109)
+ar = cbind(x,y,z,ar)
+ar = as.data.frame(ar)
+index = which(rowMeans(ar[,-c(1,2,3)])!=0)
+ar = ar[index,]
+
+ar_101006 = ar
+rm(ar)
+save(ar_101006, file = "./tfMRI_MOTOR_LR/sub_101006.RData")
+```
+
+#Serie temporale degli stimoli
+
+```{r stimuli}
+library(rstudioapi)
+cat("\f")
+rm(list=ls())
+current_path <- getActiveDocumentContext()$path
+setwd(dirname(current_path )); print(getwd())
+
+lf=read.table("./tfMRI_MOTOR_LR/lf_100206.txt", sep="\t") 
+rf=read.table("./tfMRI_MOTOR_LR/rf_100206.txt", sep="\t")
+rh=read.table("./tfMRI_MOTOR_LR/rh_100206.txt", sep="\t")
+lh=read.table("./tfMRI_MOTOR_LR/lh_100206.txt", sep="\t")
+t=read.table("./tfMRI_MOTOR_LR/t_100206.txt", sep="\t")
+
+#-la risonanza magnetica acquisisce un'immagine ogni 0.72s
+#-12s è la durata di ciascun task motorio
+# 1=motion, 0=resting 
+st=rep(0,284)
+st[ceiling(rh[1,1]/0.72) : floor((rh[1,1]+12)/0.72)]=1
+st[ceiling(rh[2,1]/0.72) : floor((rh[2,1]+12)/0.72)]=1
+st[ceiling(lh[1,1]/0.72) : floor((lh[1,1]+12)/0.72)]=1
+st[ceiling(lh[2,1]/0.72) : floor((lh[2,1]+12)/0.72)]=1
+st[ceiling(rf[1,1]/0.72) : floor((rf[1,1]+12)/0.72)]=1
+st[ceiling(rf[2,1]/0.72) : floor((rf[2,1]+12)/0.72)]=1
+st[ceiling(lf[1,1]/0.72) : floor((lf[1,1]+12)/0.72)]=1
+st[ceiling(lf[2,1]/0.72) : floor((lf[2,1]+12)/0.72)]=1
+st[ceiling(t[1,1]/0.72) : floor((t[1,1]+12)/0.72)]=1
+st[ceiling(t[2,1]/0.72) : floor((t[2,1]+12)/0.72)]=1
+
+#rh=1, lh=2, rf=3, lf=4, t=5
+tasks=rep(0,284)
+tasks[ceiling(rh[1,1]/0.72) : floor((rh[1,1]+12)/0.72)]=1
+tasks[ceiling(rh[2,1]/0.72) : floor((rh[2,1]+12)/0.72)]=1
+tasks[ceiling(lh[1,1]/0.72) : floor((lh[1,1]+12)/0.72)]=2
+tasks[ceiling(lh[2,1]/0.72) : floor((lh[2,1]+12)/0.72)]=2
+tasks[ceiling(rf[1,1]/0.72) : floor((rf[1,1]+12)/0.72)]=3
+tasks[ceiling(rf[2,1]/0.72) : floor((rf[2,1]+12)/0.72)]=3
+tasks[ceiling(lf[1,1]/0.72) : floor((lf[1,1]+12)/0.72)]=4
+tasks[ceiling(lf[2,1]/0.72) : floor((lf[2,1]+12)/0.72)]=4
+tasks[ceiling(t[1,1]/0.72) : floor((t[1,1]+12)/0.72)]=5
+tasks[ceiling(t[2,1]/0.72) : floor((t[2,1]+12)/0.72)]=5
+
+save(st, file = "./tfMRI_MOTOR_LR/st.RData")
+save(tasks, file = "./tfMRI_MOTOR_LR/tasks.RData")
+```
+
