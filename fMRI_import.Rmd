@@ -1,4 +1,4 @@
----
+  ---
 title: "fMRI data import"
 date: "`r format(Sys.time(), '%d/%m/%Y')`"
 author: "Ludovica Nucci (Start 23/03/2020; language: it)"
@@ -207,3 +207,6 @@ save(st, file = "./tfMRI_MOTOR_LR/st.RData")
 save(tasks, file = "./tfMRI_MOTOR_LR/tasks.RData")
 ```
 
+#Ringraziamenti
+
+Data were provided [in part] by the Human Connectome Project, WU-Minn Consortium (Principal Investigators: David Van Essen and Kamil Ugurbil; 1U54MH091657) funded by the 16 NIH Institutes and Centers that support the NIH Blueprint for Neuroscience Research; and by the McDonnell Center for Systems Neuroscience at Washington University.
