@@ -17,135 +17,389 @@ editor_options:
 library(rstudioapi)
 cat("\f")
 rm(list=ls())
-current_path <- getActiveDocumentContext()$path
-setwd(dirname(current_path )); print(getwd())
+ #current_path <- getActiveDocumentContext()$path
+ #setwd(dirname(current_path )); print(getwd())
 
+library(ggplot2)
 library(sysid)
 library(MTS)
 ```
 
-#Dati
-La risonanza magnetica acquisisce un'immagine ogni 0.72s (ts=0.72 tempo in secondi tra un'osservazione e la successiva), la prima immagine è acquisita al tempo 0; lf, rf, lh, rh e t sono matrici che contengono sulla prima colonna i tempi di inizio dei tasks motori (in secondi), ciascun task ha una durata pari a  12s.
-X è la serie temporale degli stimoli che vale 0 nei tempi a riposo ed 1 durante i tasks motori (aggiungiamo +1 a tutti i tempi per tenere conto del fatto che la prima immagine è acquisita al tempo 0).
+# DATI
+
+La risonanza magnetica acquisisce un'immagine ogni 0.72s (`ts` = 0.72 tempo in secondi tra un'osservazione e la successiva) e la prima immagine è acquisita al tempo 0; `lf`, `rf`, `lh`, `rh` e `t` sono matrici che contengono nella prima colonna i tempi di inizio dei tasks motori (in secondi), ciascun task ha una durata pari a  12s.
+`X` è la serie temporale degli stimoli che vale 0 nei tempi a riposo ed 1 durante i tasks motori (aggiungiamo +1 a tutti i tempi per tenere conto del fatto che la prima immagine è acquisita al tempo 0).
 
 La matrice dataMatrix contiene per colonna le serie temporali dei voxel del soggetto in esame.
+
 ```{r DATI}
-lf=read.table("./tfMRI_MOTOR_LR/lf_100206.txt", sep="\t") 
-rf=read.table("./tfMRI_MOTOR_LR/rf_100206.txt", sep="\t")
-rh=read.table("./tfMRI_MOTOR_LR/rh_100206.txt", sep="\t")
-lh=read.table("./tfMRI_MOTOR_LR/lh_100206.txt", sep="\t")
-t=read.table("./tfMRI_MOTOR_LR/t_100206.txt", sep="\t")
-#la risonanza magnetica acquisisce un'immagine ogni 0.72s, 12s è la durata di ciascun task motorio, la prima immagine è acquisita al tempo 0
+lf = read.table("./tfMRI_MOTOR_LR/lf_100206.txt", sep="\t") 
+rf = read.table("./tfMRI_MOTOR_LR/rf_100206.txt", sep="\t")
+rh = read.table("./tfMRI_MOTOR_LR/rh_100206.txt", sep="\t")
+lh = read.table("./tfMRI_MOTOR_LR/lh_100206.txt", sep="\t")
+t = read.table("./tfMRI_MOTOR_LR/t_100206.txt", sep="\t")
+#la risonanza magnetica acquisisce un'immagine ogni 0.72s, 12s è la durata di ciascun task motorio
+#la prima immagine è acquisita al tempo 0
 # 1=motion 0=resting 
-X=rep(0,284)#Serie temporale degli stimoli
-X[(ceiling(lf[1,1]/0.72)+1) : (floor((lf[1,1]+12)/0.72)+1)]=1
-X[(ceiling(lf[2,1]/0.72)+1) : (floor((lf[2,1]+12)/0.72)+1)]=1
-X[(ceiling(rf[1,1]/0.72)+1) : (floor((rf[1,1]+12)/0.72)+1)]=1
-X[(ceiling(rf[2,1]/0.72)+1) : (floor((rf[2,1]+12)/0.72)+1)]=1
-X[(ceiling(rh[1,1]/0.72)+1) : (floor((rh[1,1]+12)/0.72)+1)]=1
-X[(ceiling(rh[2,1]/0.72)+1) : (floor((rh[2,1]+12)/0.72)+1)]=1
-X[(ceiling(lh[1,1]/0.72)+1) : (floor((lh[1,1]+12)/0.72)+1)]=1
-X[(ceiling(lh[2,1]/0.72)+1) : (floor((lh[2,1]+12)/0.72)+1)]=1
-X[(ceiling(t[1,1]/0.72)+1) : (floor((t[1,1]+12)/0.72)+1)]=1
-X[(ceiling(t[2,1]/0.72)+1) : (floor((t[2,1]+12)/0.72)+1)]=1
+X = rep(0,284) #Serie temporale degli stimoli
+X[(ceiling(lf[1,1]/0.72)+1) : (floor((lf[1,1]+12)/0.72)+1)] = 1
+X[(ceiling(lf[2,1]/0.72)+1) : (floor((lf[2,1]+12)/0.72)+1)] = 1
+X[(ceiling(rf[1,1]/0.72)+1) : (floor((rf[1,1]+12)/0.72)+1)] = 1
+X[(ceiling(rf[2,1]/0.72)+1) : (floor((rf[2,1]+12)/0.72)+1)] = 1
+X[(ceiling(rh[1,1]/0.72)+1) : (floor((rh[1,1]+12)/0.72)+1)] = 1
+X[(ceiling(rh[2,1]/0.72)+1) : (floor((rh[2,1]+12)/0.72)+1)] = 1
+X[(ceiling(lh[1,1]/0.72)+1) : (floor((lh[1,1]+12)/0.72)+1)] = 1
+X[(ceiling(lh[2,1]/0.72)+1) : (floor((lh[2,1]+12)/0.72)+1)] = 1
+X[(ceiling(t[1,1]/0.72)+1) : (floor((t[1,1]+12)/0.72)+1)] = 1
+X[(ceiling(t[2,1]/0.72)+1) : (floor((t[2,1]+12)/0.72)+1)] = 1
 
-ts=0.72 #Sampling time interval
-out_order=2 #Number of output delays
-in_order=6 #Number of input delays
-max_order=max(out_order, in_order)
+ts = 0.72 #Sampling time interval
+out_order = 1 #Number of output delays
+in_order = 6 #Number of input delays
+max_order = max(out_order, in_order)
 comp_nr = 4 #Number of connectivity components
-act_thresh=0.07 #Activation threshold
+act_thresh = 0.1 #Activation threshold
 
-load("~/TESI/tfMRI_MOTOR_LR/sub_100206.RData")
-dataMatrix=ar_100206[-c(1,2,3),] 
+load("./tfMRI_MOTOR_LR/sub_100206.RData")
+dataMatrix = ar_100206[-c(1,2,3) , ] 
 #la matrice dataMatrix contiene per colonna le serie temporali dei voxel del soggetto 100206
+
+#load("./tfMRI_MOTOR_LR/sub_100307.RData")
+#dataMatrix = ar_100307[-c(1,2,3) , ] 
+#la matrice dataMatrix contiene per colonna le serie temporali dei voxel del soggetto 100307
+
+#load("./tfMRI_MOTOR_LR/sub_100408.RData")
+#dataMatrix = ar_100408[-c(1,2,3) , ] 
+#la matrice dataMatrix contiene per colonna le serie temporali dei voxel del soggetto 100408
+
 ```
 
-#Activation_base
+Plottiamo le serie temporali di 12 voxel scelti in maniera casuale, in modi diversi.
+
+```{r RANDOM PLOT}
+df = data.frame(index = rep(1:nrow(dataMatrix), 12))
+idx = sample(ncol(dataMatrix), 12)
+Y = dataMatrix[ , idx[1]]
+for (i in 2:12){
+  tmp = dataMatrix[ , idx[i]]
+  # tmp = scale(tmp, center = TRUE, scale = FALSE)
+  Y = c(Y, tmp)
+}
+df$Y = Y
+df$Voxel = rep(1:12, each = nrow(dataMatrix))
+df$X = rep(X, 12)
+df$X[df$X==0] = NA
+
+ggplot(df) +
+  geom_point(aes(index, Y)) + 
+  facet_wrap(~Voxel)
+
+ggplot(df) +
+  # geom_line(aes(index, X, colour = "Stimulus")) + #to check if rectangles are OK
+  geom_point(aes(index, Y)) +
+  geom_rect(
+    aes(xmin=index, xmax=index+1,
+        ymin=-Inf, ymax=Inf, fill=as.factor(X)), alpha = 0.3) +
+  facet_wrap(~Voxel)
+
+ggplot(df) +
+  geom_line(aes(index, Y)) +
+  geom_rect(
+    aes(xmin=index, xmax=index+1,
+        ymin=-Inf, ymax=Inf, fill=as.factor(X)), alpha = 0.3) +
+  facet_wrap(~Voxel)
+
+ggplot(df) +
+  geom_smooth(aes(index, Y), span = 0.1) +
+  geom_rect(
+    aes(xmin=index, xmax=index+1,
+        ymin=-Inf, ymax=Inf, fill=as.factor(X)), alpha = 0.3) +
+  facet_wrap(~Voxel)
+```
+
+
+# ACTIVATION_BASE
 
 Dati in ingresso: 
-X= extra input (la serie temporale degli stimoli) 
-Y= output (serie temporale del voxel in esame centrata)
-in_order= numero di lag per la X
-out_order= numero di lag per la Y
-ts= tempo in secondi tra un'osservazione e la successiva (0.72s)
 
-Passo 1: MODELLO AR ( Y )
-Calibriamo un modello autoregressivo di ordine out_order per la serie temporale Y.
+`X` = input (la serie temporale degli stimoli) 
+
+`Y` = output (serie temporale del voxel in esame)
+
+`in_order` = numero di lag per la X
+
+`out_order` = numero di lag per la Y
+
+`ts` = tempo in secondi tra un'osservazione e la successiva (0.72s)
+
+
+**Passo 1: MODELLO AR(Y)**
+
+Stimiamo un modello autoregressivo di ordine `out_order` per la serie temporale `Y`.
 La struttura del modello è data dalla seguente equazione:
-$Y[t]=a_1*Y[t-1]+a_2*Y[t-2]+\dots+a_{\mbox{out_order}}*Y[t-\mbox{out_order}]+w_t$ per $t > \mbox{out_order}$
-dove $\{w_t\}$ è un white noise.
-Utilizziamo il comando ar in cui specifichiamo la serie temporale Y e l'ordine del modello order.max = out_order.
 
-Passo 2: MODELLO ARX (X-Y)
-Il modello ARX di ordini (out_order, in_order, 1) è un modello autoregressivo in cui è presente una variabile esogena; è della forma
-$Y[t]+a_1*Y[t-1]+a_2*Y[t-2]+...+a_{\mbox{out_order}}*Y[t-\mbox{out_order}]=b_1*X[t-1]+b_2*X[t-2]+...+b_{\mbox{in_order}}*X[t-\mbox{in_order}] +w_t$ per $t> \max(\mbox{out_order}, \mbox{in_order})$
-dove $\{w_t\}$ è un white noise.
-Utilizziamo il comando arx; in ingresso abbiamo:
--data, un oggetto di classe idframe contenente le coppie input-output X[t] Y[t];
--order=c(out_order, in_order, 1) dove out_order è l'ordine associato all'output Y, in_order è l'ordine associato all'extra input X e l'ultimo termine è l'input-output delay, ovvero il numero di tempi necessari affinché l'input influenzi l'output (fissiamo il valore 1);
--lambda è il fattore di regolarizzazione, scegliamo lambda=0 per annullare l'effetto della regolarizzazione.
-Il comando ar non prevede regolarizzazione, i coefficienti del modello sono determinati con la stima dei minimi quadrati, per questo eliminiamo la regolarizzazione in modo da avere modelli coerenti. (È giusto? nell'help dice che il valore di default è lambda=0.1)
+$$Y_t = a_1\cdot Y_{t-1} + a_2\cdot Y_{t-2} + \dots + a_{out\_order}\cdot Y_{t-out\_order} + w_t,$$ 
 
-Dato in uscita:
--RSS_AR è la somma dei quadrati dei residui del modello AR
--RSS_ARX è la somma dei quadrati dei residui del modello ARX
+dove $t > out\_order$ e $w_t$ è un white noise. 
+
+Per stimare il modello utilizziamo il comando `ar` in cui specifichiamo la serie temporale `Y` e l'ordine del modello `order.max = out_order`.
+
+
+**Passo 2: MODELLO ARX(X,Y)**
+
+Il modello ARX di ordini (`out_order`, `in_order`, `1`) è un modello autoregressivo in cui è presente una variabile esogena. Il modello è della forma
+
+$$Y_t = a_1\cdot Y_{t-1} + a_2\cdot Y_{t-2} + \cdots + a_{out\_order}\cdot Y_{t-out\_order} + b_1\cdot X_{t-1} + b_2\cdot X_{t-2} + \dots + b_{in\_order}\cdot X_{t-in\_order} + w_t,$$ 
+
+dove $t> \max(out\_order, in\_order)$ e $w_t$ è un white noise. 
+
+Per stimare il modello utilizziamo il comando `arx`; in ingresso abbiamo:
+
+   + `data`, un oggetto di classe *idframe* contenente le coppie input-output `X[t]`, `Y[t]`;
+
+   + `order = c(out_order, in_order, 1)` dove `out_order` è l'ordine associato all'output `Y`, `in_order` è l'ordine associato all'input `X` e l'ultimo termine è l'input-output delay, ovvero il numero di tempi necessari affinché l'input influenzi l'output (fissiamo il valore 1);
+
+   + `lambda` è il fattore di regolarizzazione, scegliamo `lambda = 0` per annullare l'effetto della regolarizzazione.
+
+Il comando `ar` non prevede regolarizzazione, i coefficienti del modello sono determinati con la stima dei minimi quadrati, per questo eliminiamo la regolarizzazione in modo da avere modelli coerenti. (È giusto? nell'help dice che il valore di default è lambda=0.1)
+
+La funzione `arx` prevede che le serie temporali in `data` siano centrate e prive di trend, a tale proposito il pacchetto `sysid` fornisce un apposito comando, `detrend`.
+
+La funzione `detrend` ha in ingresso: 
+
+   + un oggetto di classe `idframe`;
+   
+   + `type`, un argomento che serve a specificare se centrare solamente le serie temporali (`type=0`), oppure se sottrarre a ciascuna serie temporale un trend lineare, determinato eseguendo la regressione lineare dei dati (`type=1`).
+   
+La serie temporale degli stimoli codifica un'informazione di tipo qualitativo, non deve quindi essere detrendizzata; rimuoviamo  la media o il trend dalle serie temporali dei voxel a mano invece di utilizzare la funzione `detrend`, che agirebbe anche sulla serie temporale in input.
+
+
+**Dato in uscita**
+
+- `RSS_AR` è la somma dei quadrati dei residui del modello AR
+
+- `RSS_ARX` è la somma dei quadrati dei residui del modello ARX
+
 È possibile che i modelli AR e ARX abbiano un diverso numero di residui in base alla scelta di in_order e out_order, per questo consideriamo soltanto i tempi a partire da max_order +1 in poi. (il problema non esisterebbe se scegliessimo in_order minore o uguale di out_order ma è limitante, così è ok?)
-- $1-\frac{\mbox{RSS_ARX}}{\mbox{RSS_AR}}$ è la proporzione di varianza spiegata dalla serie temporale degli stimoli X.
-Fissiamo una soglia act_thresh (ho messo 0.07 solo per avere un numero ragionevole di voxel attivati); se per un dato voxel risulta $1-\frac{\mbox{RSS_ARX}}{\mbox{RSS_AR}} > \mbox{act_thresh}$ significa che la serie temporale degli stimoli accresce la conoscenza della serie temporale del voxel, ovvero Granger-causa la serie temporale del voxel.
 
-Per ciascun voxel consideriamo la sua serie temporale, gli sottraiamo la media e calcoliamo la funzione Activation_base. (Consideriamo serie temporali centrate in modo da non dover mettere un termine costante nei modelli AR e ARX?)
-I voxel per cui act[i]>act_thresh sono quelli che si sono attivati in risposta agli stimoli dei tasks motori secondo il modello Granger (attivazioni secondarie).
+$1-\frac{RSS\_ARX}{RSS\_AR}$ è la proporzione di varianza spiegata dalla serie temporale degli stimoli X.
 
-```{r ACTIVATION DETECTION THROUGH GRANGER CAUSALITY}
+Fissiamo una soglia `act_thresh`; se per un dato voxel risulta $1-\frac{RSS\_ARX}{RSS\_AR} > act\_thresh$ significa che la serie temporale degli stimoli accresce la conoscenza della serie temporale del voxel, ovvero (Granger?)-"causa" la serie temporale del voxel.
+
+Per ciascun voxel consideriamo la relativa serie temporale detrendizzata e calcoliamo la funzione `Activation_base`. 
+I voxel per cui *act[i] > act_thresh* sono quelli che si sono attivati in risposta agli stimoli dei tasks motori secondo il modello Granger (attivazioni secondarie).
+
+
+```{r GRANGER, echo=TRUE}
 #(~17 min)
 
 Activation_base <- function(X, Y, in_order, out_order, ts){
   #AR model for the time serie Y
-  ARmodel=ar(Y, aic = FALSE, order.max = out_order) #Y[n]=ARmodel$ar[1]*Y[n-1]+ARmodel$ar[2]*Y[n-2]+ARmodel$resid[n]
-  RSS_AR=sum(ARmodel$resid[(max_order+1):284]^2)
+  ARmodel = ar(Y, aic = FALSE, order.max = out_order) #Y[n] = ARmodel$ar[1]*Y[n-1] + ARmodel$resid[n]
+  RSS_AR = sum(ARmodel$resid[(max_order+1) : length(Y)]^2)
   #ARX model for the pair [X Y]
-  data=idframe(Y, X , Ts = ts, start = 0, unit = "seconds")
-  ARXmodel=arx(data, order = c(out_order, in_order, 1), lambda = 0, intNoise = FALSE, fixed = NULL )
-  res_ARX= Y[(max_order+1):284]-ARXmodel$fitted.values[(max_order+1):284]
-  #ARXmodel$fitted.values[n]=-(ARXmodel$sys$A[2]*Y[n-1]+ARXmodel$sys$A[3]*Y[n-2])+ARXmodel$sys$B[1]*st[n-1]+ARXmodel$sys$B[2]*st[n-2]
-  RSS_ARX=sum(res_ARX^2)
+  data = idframe(Y, X , Ts = ts, start = 0, unit = "seconds")
+  ARXmodel = arx(data, order = c(out_order, in_order, 1), lambda = 0, intNoise = FALSE, fixed = NULL)
+  res_ARX = Y[(max_order+1) : length(Y)]-ARXmodel$fitted.values[(max_order+1) : length(Y)]
+  #ARXmodel$fitted.values[n] = - ARXmodel$sys$A[2]*Y[n-1] + ARXmodel$sys$B[1]*X[n-1] + ARXmodel$sys$B[2]*X[n-2] + ARXmodel$sys$B[3]*X[n-3] + ARXmodel$sys$B[4]*X[n-4] + ARXmodel$sys$B[5]*X[n-5] + ARXmodel$sys$B[6]*X[n-6]
+  RSS_ARX = sum(res_ARX^2)
   
-  1-(RSS_ARX/RSS_AR)
+  1 - (RSS_ARX/RSS_AR)
 }
   
-act=rep(0, dim(dataMatrix)[2])
-for (i in 1:dim(dataMatrix)[2]) {
+act = rep(0, dim(dataMatrix)[2])
+
+for (i in 1:dim(dataMatrix)[2]){
     Y_temp = dataMatrix[,i]
-    Y = Y_temp - mean(Y_temp)
-    act[i]=Activation_base(X, Y, in_order, out_order, ts)
+    Y_temp = (Y_temp[1:282]+Y_temp[2:283]+Y_temp[3:284])/3 #regolarizziamo eseguendo una media mobile
+    #Y = Y_temp - mean(Y_temp) #serie temporale centrata
+    t=1:length(Y_temp)
+    lm = lm(Y_temp~t)
+    Y = Y_temp - lm$fitted.values # rimuoviamo un trend lineare
+    #Y = scale(Y, center = TRUE, scale = TRUE) # riscaliamo per avere varianza 1
+    #act[i] = Activation_base(X, Y, in_order, out_order, ts)
+    act[i] = Activation_base(X[2:283], Y, in_order, out_order, ts)
 }
 
-#save(act, file = "./tfMRI_MOTOR_LR/act_in=6_out=2_lambda=0_R^2.RData")   
-#load("~/TESI/tfMRI_MOTOR_LR/act_in=6_out=2_lambda=0_R^2.RData")
+#save(act, file = "./tfMRI_MOTOR_LR/act_in=6_out=1_lambda=0_detrend_mean.RData")   
+#load("~/TESI/tfMRI_MOTOR_LR/act_in=6_out=1_lambda=0_detrend_mean_100408.RData")
 ```
 
-Per ciascun voxel attivato, cerchiamo tra gli altri voxel attivati quali sono quelli che hanno più alta causalità rispetto a lui.
+**Osservazioni**
 
-Prendiamo in esame l'i_esimo voxel attivato ed eseguiamo un ciclo for che scorre su tutti gli altri voxel attivati; ad ogni passo j calcoliamo la funzione Activation_base, con extra input la serie del j_esimo voxel attivato ed output la serie del voxel i_esimo centrata. (nel matlab non viene centrata ma credo che sia giusto farlo ??)
-Raccogliamo i risultati nella matrice conn_temp; è una matrice (# di voxel attivati) x 2 in cui alla riga j_esima abbiamo, nella prima colonna il valore di Granger tra il j_esimo voxel e l'i_esimo, nella seconda il numero della colonna che il j_esimo voxel attivato occupa in dataMatrix.
-Riordiniamo le righe della matrice in ordine decrescente rispetto alla prima colonna, in modo da avere nelle prime righe i voxel che hanno causalità più alta rispetto al voxel in esame.
+- La funzione arx ha delle stranezze, i `residuals` non sono i residui del modello (coincidono con i `fitted.values`), per questo sono stati calcolati a mano come *Y - fitted.values*; in più, sia per i `residuals` che per i `fitted.values`, ci sono anche i valori per *t* $\leq$ *max_order* (chi sono ?!?).
 
-Salviamo le informazioni nelle matrici (comp_nr+1) x (# voxel attivati) CONN_matr e CONN_matr_gr.
--CONN_matr: nella i_esima colonna ha il numero della colonna che l' i_esimo voxel attivato occupa in dataMatrix e i numeri delle colonne che occupano i comp_nr voxel attivati con causalità più alta rispetto all'i_esimo.
--CONN_matr_gr: nella i_esima colonna ha il numero della colonna che l' i_esimo voxel attivato occupa in dataMatrix e i valori di Granger tra i comp_nr voxel attivati che hanno causalità più alta rispetto all'i_esimo voxel e l'i_esimo voxel.
+- Aumentare il valore di lambda non comporta miglioramenti in termini di guadagno di varianza spiegata (sono stati testati *lambda=0.1* valore di default e *lambda=0.5*)
 
-```{r DETECTION OF MAXIMALLY CAUSED VOXEL WITH RESPECT TO EACH VOXEL}
+- Scalare le serie temporali dei voxel affinché abbiano deviazione standard 1 non comporta nessuna variazione in termini di incremento di varianza spiegata perché i residui dei modelli `ar` e `arx` vengono riscalati nello stesso modo e quindi il rapporto delle somme dei quadrati dei residui resta costante.
 
+- Rimuovere dalle serie temporali dei voxel un trend lineare piuttosto che solamente centrarle comporta un lieve miglioramento.
+
+- Regolarizzare le serie temporali dei voxel eseguendo una media mobile (per ciascun tempo t, eseguiamo la media della serie temporale con i valori al tempo precedente e successivo) comporta un ulteriore miglioramento nella varianza spiegata, sia in termini di massimo guadagno (circa il $5\%$ in più per il soggetto 100206) che soprattutto nel di numero di voxel con incremento significativo (all'incirca raddoppiano per il soggetto 100206).
+
+Plottiamo le serie temporali dei 12 voxel con più alta e più bassa causalità rispetto alla serie temporale degli stimoli.
+
+```{r}
+incr = order(act, decreasing = TRUE) #ordiniamo act secondo l'ordine decrescente
+df = data.frame(index = rep(1:nrow(dataMatrix), 12))
+idx = incr[1:12] #le prime 12 componenti sono gli indici delle colonne dei voxel con più alta causalità rispetto alla serie temporale degli stimoli
+
+Y = dataMatrix[ , idx[1]]
+for (i in 2:12){
+  tmp = dataMatrix[ , idx[i]]
+  # tmp = scale(tmp, center = TRUE, scale = FALSE)
+  Y = c(Y, tmp)
+}
+df$Y = Y
+df$Voxel = rep(1:12, each = nrow(dataMatrix))
+df$X = rep(X, 12)
+df$X[df$X==0] = NA
+
+ggplot(df) +
+  geom_line(aes(index, Y)) +
+  geom_rect(
+    aes(xmin=index, xmax=index+1,
+        ymin=-Inf, ymax=Inf, fill=as.factor(X)), alpha = 0.3) +
+  facet_wrap(~Voxel) +
+  ggtitle("Max causality")+
+  theme(plot.title = element_text(hjust = 0.5))
+
+ggplot(df) +
+  geom_smooth(aes(index, Y), span = 0.1) +
+  geom_rect(
+    aes(xmin=index, xmax=index+1,
+        ymin=-Inf, ymax=Inf, fill=as.factor(X)), alpha = 0.3) +
+  facet_wrap(~Voxel) +
+  ggtitle("Max causality")+
+  theme(plot.title = element_text(hjust = 0.5))
+
+decr = order(act, decreasing = FALSE) #ordiniamo act secondo l'ordine crescente
+df = data.frame(index = rep(1:nrow(dataMatrix), 12))
+idx = decr[1:12] #le prime 12 componenti sono gli indici delle colonne dei voxel con più bassa causalità rispetto alla serie temporale degli stimoli
+
+Y = dataMatrix[ , idx[1]]
+for (i in 2:12){
+  tmp = dataMatrix[ , idx[i]]
+  # tmp = scale(tmp, center = TRUE, scale = FALSE)
+  Y = c(Y, tmp)
+}
+df$Y = Y
+df$Voxel = rep(1:12, each = nrow(dataMatrix))
+df$X = rep(X, 12)
+df$X[df$X==0] = NA
+
+ggplot(df) +
+  geom_line(aes(index, Y)) +
+  geom_rect(
+    aes(xmin=index, xmax=index+1,
+        ymin=-Inf, ymax=Inf, fill=as.factor(X)), alpha = 0.3) +
+  facet_wrap(~Voxel)+
+  ggtitle("Min causality")+
+ theme(plot.title = element_text(hjust = 0.5))
+
+ggplot(df) +
+  geom_smooth(aes(index, Y), span = 0.1) +
+  geom_rect(
+    aes(xmin=index, xmax=index+1,
+        ymin=-Inf, ymax=Inf, fill=as.factor(X)), alpha = 0.3) +
+  facet_wrap(~Voxel) +
+  ggtitle("Min causality")+
+ theme(plot.title = element_text(hjust = 0.5))
+
+```
+
+I grafici relativi ai voxel con alta causalità rispetto alla serie temporale degli stimoli, ovvero i voxel che si sono attivati in risposta agli stimoli del tasks motori secondo il modello Granger, presentano dei picchi, più o meno evidenti, in corrispondenza delle bande rosa, che distinguono i tempi dei tasks motori dai tempi a riposo.
+Osserviamo un comportamento nettamente diverso nei voxel con bassa causalità rispetto alla serie temporale degli stimoli, ovvero quelli che secondo il modello Granger non si sono attivati; i grafici sono irregolari e non evidenziano particolari andamenti in corrispondenza dei tempi dei tasks motori.
+
+
+**Analisi dei residui**
+
+Selezioniamo casualmente un voxel tra quelli con più alta causalità rispetto alla serie temporale degli stimoli ed esaminiamo in dettaglio il modello `ARX`.
+
+```{r}
+set.seed(11)
+Y_temp = dataMatrix[ , sample(which(act>0.1), 1)]
+Y_temp = (Y_temp[1:282]+Y_temp[2:283]+Y_temp[3:284])/3
+t=1:length(Y_temp)
+lm = lm(Y_temp~t)
+Y = Y_temp - lm$fitted.values
+
+data = idframe(Y, X[2:283] , Ts = ts, start = 0, unit = "seconds")
+ARXmodel = arx(data, order = c(out_order, in_order, 1), lambda = 0, intNoise = FALSE, fixed = NULL)
+res_ARX = Y[(max_order+1) : length(Y)]-ARXmodel$fitted.values[(max_order+1) : length(Y)] #residui
+fit_ARX = ARXmodel$fitted.values[(max_order+1) : length(Y)] #valori fittati
+
+plot(res_ARX, pch = 20) #plot residui
+title("Residui del modello ARX")
+
+hist(res_ARX, 30, freq=F) #istogramma delle frequenze
+lines(sort(res_ARX),dnorm(sort(res_ARX),mean(res_ARX),sd(res_ARX)),col="red")
+
+qqnorm(res_ARX, pch=20) #quantili
+qqline(res_ARX, col="red")
+
+plot(fit_ARX, res_ARX, pch=20) # residui vs valori fittati
+title("Residuals vs fitted values")
+
+plot(Y[(max_order+1) : length(Y)], res_ARX, pch=20, xlab = "Y")
+title("Residuals vs Y") #redisui vs Y
+
+plot(fit_ARX, type = "l", col="red" , ylim = c(-500,500)) #Y e valori fittati
+points(Y[(max_order+1) : length(Y)], type = "l")
+title("Y e valori fittati")
+legend(260,500 ,legend=c("Y", "fit"), col=c("black", "red"), pch=c(20,20), cex=0.7)
+
+```
+
+- Dal plot dei residui del modello ARX vediamo che i residui sono distribuiti casualmente attorno allo zero e non c'è evidente struttura residua.
+
+- Valutiamo graficamente le frequenze dei residui confrontandole con la densità di una normale avente le stesse media e deviazione standard campionarie. L’istogramma è ragionevolmente simmetrico intorno allo 0 e riproduce approssimativamente la funzione di densità gaussiana.
+
+- Confrontiamo i quantili campionari dei residui con i quantili teorici di una gaussiana (la retta di riferimento in rosso); i punti giacciono in modo piuttosto preciso sulla retta di riferimento, eccetto per pochi valori alle estremità che si discostano leggermente.
+
+- Nel plot dei residui contro i valori fittati osserviamo che i punti sono distribuiti in modo piuttosto uniforme in una banda centrata nello zero, ci sono pochi valori nettamente più grandi rispetto alla media.
+
+- Nel plot dei residui contro la serie temporale del voxel osserviamo che i residui crescono all'aumentare della Y, il modello cattura peggio la Y quando assume valori molto grandi e molto piccoli. (problema?)
+
+- Nell'ultimo plot confrontiamo la Y con i valori fittati. La Y nonostante la regolarizzazione con la media mobile oscilla molto ed in corrispondenza dei picchi, positivi e negativi, vediamo che i valori fittati si discostano maggiormente e questa è la ragione dell'andamento del grafico precedente. (La previsione aderisce troppo ai dati?)
+
+**Altri soggetti**
+
+L'analisi dei soggetti 100307 e 100408 concorda con i risultati ottenuti per il soggetto 100206; si ottengono differenze in termini di massimo valore del guadagno di varianza spiegata, più alto per il soggetto 100307 (circa  il $27\%$), e in termini di numero di voxel con incremento di varianza spiegata significativo, soprattutto nel soggetto 100408.
+
+
+# NETWORK OF VOXELS
+
+Per ciascun voxel attivato, cerchiamo tra gli altri voxel attivati quali sono quelli che hanno più alta causalità rispetto a lui, secondo la seguente procedura.
+
+- Prendiamo in esame l'i-esimo voxel attivato ed eseguiamo un ciclo *for* che scorre su tutti gli altri voxel attivati
+
+- ad ogni passo *j* calcoliamo la funzione `Activation_base`, con extra input la serie del j-esimo voxel attivato ed output la serie del voxel i-esimo detrendizzata e regolarizzata.
+
+- Raccogliamo i risultati nella matrice `conn_temp`; è una matrice di dimensione *numero voxel attivati x 2* in cui alla riga j-esima abbiamo, nella prima colonna il valore di Granger tra il j-esimo voxel e l'i-esimo, nella seconda il numero della colonna che il j-esimo voxel attivato occupa in `dataMatrix`.
+
+- Riordiniamo le righe della matrice in ordine decrescente rispetto alla prima colonna, in modo da avere nelle prime righe i voxel che hanno causalità più alta rispetto al voxel in esame.
+
+- Salviamo le informazioni nelle matrici di dimensioni *comp_nr+1 x numero voxel attivati* `CONN_matr` e `CONN_matr_gr`.
+
+- CONN_matr: nella i_esima colonna ha il numero della colonna che l' i_esimo voxel attivato occupa in dataMatrix e i numeri delle colonne che occupano i comp_nr voxel attivati con causalità più alta rispetto all'i_esimo.
+
+- CONN_matr_gr: nella i_esima colonna ha il numero della colonna che l' i_esimo voxel attivato occupa in dataMatrix e i valori di Granger tra i comp_nr voxel attivati che hanno causalità più alta rispetto all'i_esimo voxel e l'i_esimo voxel.
+
+
+```{r VOXEL NETWORK}
 CONN_matr=c()
 CONN_matr_gr=c()
 for (i in 1:length(which(act>act_thresh))) {
   act_idx=which(act>act_thresh)[-i]
   conn_temp = c()
   Y_temp=dataMatrix[,which(act>act_thresh)[i]]
-  Y = Y_temp - mean(Y_temp)
+  Y_temp = (Y_temp[1:282]+Y_temp[2:283]+Y_temp[3:284])/3 #regolarizziamo eseguendo una media mobile
+  t=1:length(Y_temp)
+  lm = lm(Y_temp~t)
+  Y = Y_temp - lm$fitted.values # rimuoviamo un trend lineare
   for (j in 1:length(act_idx)) {
-     conn_temp=rbind(conn_temp, c(Activation_base(dataMatrix[,act_idx[j]], Y, in_order, out_order, ts), act_idx[j]))
+     conn_temp=rbind(conn_temp, c(Activation_base(dataMatrix[(2:283),act_idx[j]], Y, in_order, out_order, ts), act_idx[j]))
      #conn_temp è una matrice "# di voxel attivati" x 2 -> alla riga j_esima abbiamo, nella prima colonna il valore di Granger tra il j_esimo voxel e l'i_esimo, nella seconda il numero della colonna che il j_esimo voxel attivato occupa in dataMatrix
   }
   ord=order(conn_temp[,1], decreasing = TRUE)
@@ -158,69 +412,194 @@ for (i in 1:length(which(act>act_thresh))) {
   #CONN_matr_gr è la matrice (comp_nr+1) x (# voxel attivati) che nella i_esima colonna ha il numero della colonna che l'i_esimo voxel attivato occupa in dataMatrix e i valori di Granger tra "i comp_nr voxel attivati che hanno causalità più alta rispetto all'i_esimo voxel" e "l'i_esimo voxel"
 }
 
-#save(CONN_matr, file = "./tfMRI_MOTOR_LR/CONN_matr_in=6_out=2_.99_lambda=0_R^2_mean.RData")   
-#save(CONN_matr_gr, file = "./tfMRI_MOTOR_LR/CONN_matr_gr_in=6_out=2_.99_lambda=0_R^2_mean.RData")  
-#load("~/TESI/tfMRI_MOTOR_LR/CONN_matr_in=6_out=2_.99_lambda=0_R^2_mean.RData")
+#save(CONN_matr, file = "./tfMRI_MOTOR_LR/CONN_matr_in=6_out=1_lambda=0_R^2_detrend_mean_0.1.RData") 
+#save(CONN_matr_gr, file ="./tfMRI_MOTOR_LR/CONN_matr_gr_in=6_out=1_lambda=0_R^2_detrend_mean_0.1.RData")  
+#load("~/TESI/tfMRI_MOTOR_LR/CONN_matr_in=6_out=1_lambda=0_R^2_detrend_mean_0.1_100408.RData")
 #load("~/TESI/tfMRI_MOTOR_LR/CONN_matr_gr_in=6_out=2_.99_lambda=0_R^2_mean.RData")
 ```
 
-#Activation
+# ACTIVATION
 
 Dati in ingresso: 
-X= extra input (la serie temporale degli stimoli)
-CONN= extra input (matrice 284 x comp_nr che contiene per colonna le serie temporali dei comp_nr voxel con più alta causalità rispetto a quello in esame)
-Y= output (serie temporale del voxel in esame centrata)
-in_order= numero di lag per gli extra input
-out_order= numero di lag per la Y
 
-Passo 1: MODELLI ARX Multiple Input-Single Output (CONN-Y) e (X,CONN-Y)
-Calibriamo i modelli ARX MISO di ordini (out_order, in_order, 1) descritti dalle seguenti equazioni:
+`X` = extra input (la serie temporale degli stimoli)
 
-$Y[t]= a_1*Y[t-1]+a_2*Y[t-2]+\dots+a_{\mbox{out_order}}*Y[t-\mbox{out_order}]+{c^1}_1*\mbox{CONN}[t-1,1]+{c^2}_1*\mbox{CONN}[t-1,2]+\dots+{c^{\mbox{comp_nr}}}_1*\mbox{CONN}[t-1,\mbox{comp_nr}]+{c^1}_2*\mbox{CONN}[t-2,1]+{c^2}_2*\mbox{CONN}[t-2,2]+\dots+{c^{\mbox{comp_nr}}}_2*\mbox{CONN}[t-2,\mbox_{comp_nr}]+{c^1}_{\mbox{in_order}}*\mbox{CONN}[t-\mbox{in_order},1]+{c^2}_{\mbox{in_order}}*\mbox{CONN}[t-\mbox{in_order},2]+\dots+{c^{\mbox{comp_nr}}_{\mbox{in_order}}*\mbox{CONN}[t-\mbox{in_order},\mbox{comp_nr}]+w_t$ 
-per $t> \max(\mbox{out_order},\mbox{in_order})$
+`CONN` = extra input (matrice che contiene per colonna le serie temporali dei comp_nr voxel con più alta causalità rispetto a quello in esame)
 
-$Y[t]= a_1*Y[t-1]+a_2*Y[t-2]+\dots+a_{\mbox{out_order}}*Y[t-\mbox{out_order}]+b_1*X[t-1]+b_2*X[t-2]+...+b_{\mbox{in_order}}*X[t-\mbox{in_order}] +{c^1}_1*\mbox{CONN}[t-1,1]+{c^2}_1*\mbox{CONN}[t-1,2]+\dots+{c^{\mbox{comp_nr}}}_1*\mbox{CONN}[t-1,\mbox{comp_nr}]+{c^1}_2*\mbox{CONN}[t-2,1]+{c^2}_2*\mbox{CONN}[t-2,2]+\dots+{c^{\mbox{comp_nr}}}_2*\mbox{CONN}[t-2,\mbox{comp_nr}]+{c^1}_{\mbox{in_order}}*\mbox{CONN}[t-\mbox{in_order},1]+{c^2}_{\mbox{in_order}}*\mbox{CONN}[t-\mbox{in_order},2]+\dots+{c^{\mbox{comp_nr}}_{\mbox{in_order}}*\mbox{CONN}[t-\mbox{in_order},\mbox{comp_nr}]+w_t$ 
-per $t> \max(\mbox{out_order},\mbox{in_order})$
-dove $\{w_t\}$ è un white noise.
+`Y` = output (serie temporale del voxel in esame centrata)
 
-Utilizziamo il comando VARX, che è l'estensione del comando arx al caso di serie temporali multivariate, ci consente quindi di lavorare con multipli extra input.
-In ingresso abbiamo:
-- la serie temporale Y ed il relativo ordine autoregressivo;
-- xt è la matrice delle serie temporali in input ed m è il relativo ordine autoregressivo.
-La funzione non prevede la possibilità di un input_output delay. 
-Per risolvere il problema prendiamo la serie Y dal tempo 2 a 284, le serie in input dal tempo 1 a 283 e m= in_order-1 (perché c'è anche il lag 0) in modo da creare il ritardo voluto. 
-(ha senso fare così? in questo modo perdiamo in entrambi i casi il primo residuo però i modelli sono più simili ai precedenti anche se non sono sicura che sia davvero necessario)
+`in_order` = numero di lag per gli extra input
 
-Dato in uscita:
+`out_order` = numero di lag per la Y
+
+**Passo 1**: MODELLI ARX Multiple Input-Single Output (CONN-Y) e (X,CONN-Y)
+
+Stimiamo i modelli ARX MISO di ordini (out_order, in_order, 1) descritti dalle seguenti equazioni:
+
+\begin{equation}
+\begin{split}
+Y_t  &= a_1\cdot Y_{t-1} + a_2\cdot Y_{t-2} + \dots + a_{out\_order}\cdot Y_{t - out\_order} + \dots \\[1ex]
+
+& + c^1_1\cdot CONN_{[t-1,1]} + c^2_1\cdot CONN_{[t-1,2]} + \dots + c^{comp\_nr}_1\cdot CONN_{[t-1,comp\_nr]} + \dots \\[1ex]
+
+& + c^1_2\cdot CONN_{[t-2,1]} + c^2_2\cdot CONN_{[t-2,2]} + \dots + c^{comp\_nr}_2 \cdot CONN_{[t-2,comp\_nr]} + \dots \\[1ex]
+
+& + c^1_{in\_order}\cdot CONN_{[t-in\_order,1]} + c^2_{in\_order}\cdot CONN_{[t-in\_order,2]} + \dots + c^{comp\_nr}_{in\_order}\cdot CONN_{[t-in\_order,comp\_nr]} + \dots \\[1ex]
+
+& + w_t,
+\end{split}
+\end{equation}
+
+per $t> \max(out\_order, in\_order)$, dove $\{w_t\}$ è un white noise;
+
+\begin{equation}
+\begin{split}
+Y_t &= a_1\cdot Y_{t-1} + a_2\cdot Y_{t-2} + \dots + a_{out\_order}\cdot Y_{t-out\_order} + \dots \\[1ex]
+
+& + b_1\cdot X_{t-1} + b_2\cdot X_{t-2} + \dots + b_{in\_order}\cdot X_{t-in\_order} + \dots \\[1ex]
+
+& + c^1_1\cdot CONN_{[t-1,1]} + c^2_1\cdot CONN_{[t-1,2]} + \dots + c^{comp\_nr}_1\cdot CONN_{[t-1,comp\_nr]} + \dots \\[1ex]
+
+& + c^1_2\cdot CONN_{[t-2,1]} + c^2_2\cdot CONN_{[t-2,2]} + \dots + c^{comp\_nr}_2\cdot CONN_{[t-2,comp\_nr]} + \dots \\[1ex]
+
+& + c^1_{in\_order}\cdot CONN_{[t-in\_order,1]} + c^2_{in\_order}\cdot CONN_{[t-in\_order,2]} + \dots + c^{comp\_nr}_{in\_order}\cdot CONN_{[t-in\_order,comp\_nr]} + \dots \\[1ex]
+
+& + w_t,
+\end{split}
+\end{equation}
+
+per $t> \max(out\_order, in\_order)$, dove $\{w_t\}$ è un white noise.
+
+Utilizziamo il comando `VARX`, che è l'estensione del comando `arx` al caso di serie temporali multivariate, ci consente quindi di lavorare con multipli extra input. In ingresso abbiamo:
+
+- la serie temporale `Y` ed il relativo ordine autoregressivo;
+
+- `xt` è la matrice delle serie temporali in input ed `m` è il relativo ordine autoregressivo.
+
+La funzione non prevede la possibilità di un input_output delay. Per risolvere il problema prendiamo la serie `Y` a partire dal tempo *2*, dalle serie in input escludiamo l'ultimo tempo e *m = in_order-1* (perché c'è anche il lag 0) in modo da creare il ritardo voluto. (ha senso fare così? in questo modo perdiamo in entrambi i casi il primo residuo però i modelli sono più simili ai precedenti anche se non sono sicura che sia davvero necessario)
+
+**Dato in uscita**
+
 L'output è analogo a quello della funzione Activation_base ed è la proporzione di varianza spiegata dalla serie degli stimoli.
--RSS_red è la somma dei quadrati dei residui del modello (CONN-Y)
--RSS_full è la somma dei quadrati dei residui del modello (X,CONN-Y)
 
-Per ogni voxel attivato secondo il modello Granger calcoliamo la funzione Activation e riportiamo il risultato in act_CONN.
-I voxel per cui act_CONN[i]>act_thresh sono quelli che si sono attivati in risposta agli stimoli dei tasks motori secondo il modello che tiene conto della connettività tra i voxel (attivazioni primarie).
-(act_CONN nella versione precedente aveva lunghezza pari al numero di voxel attivati, adesso è un vettore di lunghezza uguale al numero di voxel, con elementi diversi da zero in corrispondenza delle posizioni dei voxel attivati, in questo modo è immediato risalire alla colonna del voxel attivato in dataMatrix, prima era più macchinoso)
+- `RSS_red` è la somma dei quadrati dei residui del modello (CONN-Y)
 
-```{r ACTIVATION DETECTION THROUGH CONNECTIVITY}
+- `RSS_full` è la somma dei quadrati dei residui del modello (X,CONN-Y)
 
+Per ogni voxel attivato secondo il modello Granger calcoliamo la funzione Activation e riportiamo il risultato in `act_CONN`. I voxel per cui *act_CONN[i] > act_thresh* sono quelli che si sono attivati in risposta agli stimoli dei tasks motori secondo il modello che tiene conto della connettività tra i voxel (attivazioni primarie). (act_CONN nella versione precedente aveva lunghezza pari al numero di voxel attivati, adesso è un vettore di lunghezza uguale al numero di voxel, con elementi diversi da zero in corrispondenza delle posizioni dei voxel attivati, in questo modo è immediato risalire alla colonna del voxel attivato in dataMatrix, prima era più macchinoso)
+
+```{r ACTIVATION THROUGH CONNECTIVITY, echo=TRUE, results=FALSE}
 Activation<- function(X, Y, CONN, in_order, out_order){
   #ARX model for the time series Y CONN
-  ARXmodel_red=VARX(Y[2:284], out_order, xt = CONN[1:283,], m = (in_order-1), include.mean = F, fixed = NULL)
-  #Y[n]-(ARXmodel_red$coef[1]*Y[n-1]+ARXmodel_red$coef[2]*Y[n-2]+ARXmodel_red$coef[3]*CONN[n-1,1]+ARXmodel_red$coef[4]*CONN[n-1,2]+ARXmodel_red$coef[5]*CONN[n-1,3]+ARXmodel_red$coef[6]*CONN[n-1,4]+ARXmodel_red$coef[7]*CONN[n-2,1]+ARXmodel_red$coef[8]*CONN[n-2,2]+ARXmodel_red$coef[9]*CONN[n-2,3]+ARXmodel_red$coef[10]*CONN[n-2,4])=ARXmodel_red$residuals[n-3] n>3
+  ARXmodel_red=VARX(Y[2:length(Y)], out_order, xt = CONN[1:(length(Y)-1),], m = (in_order-1), include.mean = F, fixed = NULL)
+  #Y[n] - ARXmodel_red$coef[1]*Y[n-1] + ARXmodel_red$coef[3]*CONN[n-1,1] + ARXmodel_red$coef[4]*CONN[n-1,2] + ARXmodel_red$coef[5]*CONN[n-1,3] + ARXmodel_red$coef[6]*CONN[n-1,4] + ARXmodel_red$coef[7]*CONN[n-2,1] + ARXmodel_red$coef[8]*CONN[n-2,2] + ARXmodel_red$coef[9]*CONN[n-2,3] + ARXmodel_red$coef[10]*CONN[n-2,4]) = ARXmodel_red$residuals[n-3] n>3
   RSS_red=sum(ARXmodel_red$residuals^2)
   #ARX model for [X CONN Y]
-  ARXmodel_full=VARX(Y[2:284], out_order, xt = cbind(X[1:283],CONN[1:283,]), m = (in_order-1), include.mean = F, fixed= NULL)
+  ARXmodel_full=VARX(Y[2:length(Y)], out_order, xt = cbind(X[1:(length(Y)-1)],CONN[1:(length(Y)-1),]), m = (in_order-1), include.mean = F, fixed= NULL)
   RSS_full=sum(ARXmodel_full$residuals^2)
   1-(RSS_full/RSS_red) 
 }
-
+  
 act_CONN = rep(0,dim(dataMatrix)[2])
 for (i in 1:length(which(act>act_thresh))){
   Y_temp = dataMatrix[,which(act>act_thresh)[i]]
-  Y = Y_temp - mean(Y_temp)
+  Y_temp = (Y_temp[1:282]+Y_temp[2:283]+Y_temp[3:284])/3 #regolarizziamo eseguendo una media mobile
+  t=1:length(Y_temp)
+  lm = lm(Y_temp~t)
+  Y = Y_temp - lm$fitted.values # rimuoviamo un trend lineare
   CONN=dataMatrix[, CONN_matr[-1,i]] #CONN è una matrice 284 x comp_nr che contiene per colonna le serie temporali dei comp_nr voxel con più alta causalità rispetto a quello in esame
-  act_CONN[which(act>act_thresh)[i]]=Activation(X, Y, CONN, in_order, out_order)
+  CONN = (CONN[1:282,]+CONN[2:283,]+CONN[3:284,])/3 #regolarizziamo eseguendo una media mobile
+  lms=apply(CONN, 2, function(y) lm(y~t)) #eliminiamo il trend
+  CONN=CONN-lapply(lms, function(x) x$fitted.values)
+  act_CONN[which(act>act_thresh)[i]]=Activation(X[2:283], Y, CONN, in_order, out_order)
 }
 
-#length(which(act > act_thresh)) 1097
-#length(which(act_CONN> act_thresh)) 385
+```
+
+**Osservazioni**
+
+- Regolarizzare e detrendizzare le serie temporali in CONN comporta una diminuzione del numero dei voxel con incremento di varianza spiegata elevato, ovvero una riduzione del numero di attivazioni secondo il modello che tiene conto della connettività. (E' positivo?)
+In seguito alla regolarizzazione e detrendizzazione, nel soggetto 100206 osserviamo un aumento in termini di massimo incremento di varianza spiegata (dal $18\%$ al $20\%$ circa), al contrario nel soggetto 100408 si verifica una riduzione (dal $24\%$ al $18\%$ circa).
+
+- Nei seguenti grafici vediamo le serie temporali con più alta causalità rispetto alla serie temporale degli stimoli, secondo il modello che tiene conto della connettività.
+
+```{r echo=TRUE}
+incr_CONN = order(act_CONN, decreasing = TRUE) #ordiniamo act secondo l'ordine decrescente
+df = data.frame(index = rep(1:nrow(dataMatrix), 12))
+idx = incr_CONN[1:12] #le prime 12 componenti sono gli indici delle colonne dei voxel con più alta causalità rispetto alla serie temporale degli stimoli
+
+Y = dataMatrix[ , idx[1]]
+for (i in 2:12){
+  tmp = dataMatrix[ , idx[i]]
+  # tmp = scale(tmp, center = TRUE, scale = FALSE)
+  Y = c(Y, tmp)
+}
+df$Y = Y
+df$Voxel = rep(1:12, each = nrow(dataMatrix))
+df$X = rep(X, 12)
+df$X[df$X==0] = NA
+
+ggplot(df) +
+  geom_line(aes(index, Y)) +
+  geom_rect(
+    aes(xmin=index, xmax=index+1,
+        ymin=-Inf, ymax=Inf, fill=as.factor(X)), alpha = 0.3) +
+  facet_wrap(~Voxel) +
+  ggtitle("Max causality")+
+  theme(plot.title = element_text(hjust = 0.5))
+
+ggplot(df) +
+  geom_smooth(aes(index, Y), span = 0.1) +
+  geom_rect(
+    aes(xmin=index, xmax=index+1,
+        ymin=-Inf, ymax=Inf, fill=as.factor(X)), alpha = 0.3) +
+  facet_wrap(~Voxel) +
+  ggtitle("Max causality")+
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+**Confronto tra modelli**
+
+Per confrontare i modelli `ar`e `arx` con i modelli che considerano la connettività è necessario utilizzare statistiche che tengano conto del fatto che si tratta di modelli con un numero diverso di variabili.
+La somma dei quadrati dei residui diminuisce sempre quando includiamo in un modello un maggior numero di predittori, per questo l'*R^2* dei modelli `ar` e `arx` risulterà sempre inferiore rispetto all'*R^2* dei modelli che tengono conto della connettività, perchè hanno un numero più elevato di variabili, non è quindi in questo caso una statistica adeguata.
+
+Esistono diverse statistiche per confrontare modelli con un diverso numero di predittori:
+  
+  + Akaike Information Criterion (`AIC`) 
+  
+  $$AIC= N \cdot \log\bigg( \frac{RSS}{N}\bigg) + 2\cdot n_p + N \cdot (n_y \cdot (\log(2 \cdot \pi) + 1 )),$$
+  
+  + Normalized AIC (`nAIC`)
+   
+   $$nAIC= \log\bigg( \frac{RSS}{N} \bigg) + \frac{2\cdot n_p}{N}, $$
+  
+   + Bayesian Information Criteria (`BIC`)
+  
+  $$BIC= N \cdot \log\bigg( \frac{RSS}{N}\bigg) + \log(N) \cdot n_p + N \cdot (n_y \cdot (\log(2 \cdot \pi) + 1 )),$$
+   + Adjusted `R^2`
+  
+  $$  1- \frac{RSS/ (N-n_p-1)}{TSS/(N-1)},$$
+
+dove 
+
+- $N$ è il numero di osservazioni (284),
+
+- $n_p$ è il numero di parametri stimati,
+
+- $n_y$ è il numero di residui del modello,
+
+- *RSS* è la somma dei quadrati dei residui del modello,
+
+- *TSS* è la variabilità totale delle osservazioni.
+
+`AIC`, `nAIC` e `BIC` hanno un termine di penalizzazione proporzionale al numero di parametri del modello, la penalità aumenta all'aumentare del numero di variabili, per bilanciare la naturale diminuzione della *RSS*.
+Il `BIC` penalizza in modo più forte i modelli con elevato numero di variabili rispetto all'`AIC`.
+
+Mentre l'R^2 diminuisce sempre all'aumentare del numero di variabili, nell' adjusted *R^2* abbiamo il termine $RSS/ (N-n_p-1)$ che può aumentare o diminuire, a causa della presenza di $n_p$ al denominatore.
+Includere variabili al modello che non portano un sufficiente ammontare di informazione, causa una diminuzione di  $RSS/ (N-n_p-1)$, con conseguente decremento dell'adjusted *R^2*, paghiamo dunque il prezzo dell'inclusione nel modello di variabili non necessarie. Questa statistica è meno usata rispetto alle precedenti.
+
+(Che dobbiamo fare con queste statistiche?)
+
+```{r Knitr End, echo=FALSE}
+knitr::knit_exit()
 ```
