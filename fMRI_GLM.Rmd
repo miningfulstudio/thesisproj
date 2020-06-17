@@ -13,231 +13,237 @@ editor_options:
   chunk_output_type: console
 ---
 
-#Dati
-
 ```{r preamble, message=FALSE, warning=FALSE}
 library(rstudioapi)
 cat("\f")
 rm(list=ls())
-current_path <- getActiveDocumentContext()$path
-setwd(dirname(current_path )); print(getwd())
-
-library(oro.nifti)
-```
-
-```{r sub_100206}
-nii = readNIfTI("./tfMRI_MOTOR_LR/tfMRI_MOTOR_LR_100206.nii")
-ar = array(c(nii), c(902629, 284))
-x = rep(1:91,109*91)
-y = rep(rep(1:109, length.out=91*109, each=91),91)
-z = rep(1:91, length.out=91*109*91, each=91*109)
-ar = cbind(x,y,z,ar)
-ar=t(ar)
-ar = as.data.frame(ar)
-index = which(colMeans(ar[-c(1,2,3),])!=0)
-ar = ar[,index]
-
-ar_100206 = ar
-rm(ar)
-save(ar_100206, file = "./tfMRI_MOTOR_LR/sub_100206.RData")
-```
-
-#Attivazioni dei voxel secondo il modello standard (GLM)
-
-```{r preamble, message=FALSE, warning=FALSE}
-library(rstudioapi)
-cat("\f")
-rm(list=ls())
-current_path <- getActiveDocumentContext()$path
-setwd(dirname(current_path )); print(getwd())
+# current_path <- getActiveDocumentContext()$path
+# setwd(dirname(current_path )); print(getwd())
 
 library(fmri)
 library(oro.nifti)
+library(ggplot2)
 ```
 
-```{r sub_100206}
+# Attivazioni dei voxel secondo il modello standard (GLM)
+
+Il General Linear Model è un modello di tipo lineare, descritto dalla seguente equazione:
+$$Y_t= x_t \cdot \beta + \sum_{l=0}^{q}{t^l \cdot \gamma_l} + \epsilon_t ,$$
+dove
+
+- `Y` è la serie temporale di un voxel,
+
+- $x_t$ è il termine che rappresenta la risposta allo stimolo al tempo `t`,
+
+- $\beta$ è l'intensità della risposta allo stimolo,
+
+- il polinomio è il termine di *drift* di ordine `q`, 
+
+- $\epsilon$ è l'errore.
+
+Il GLM può essere riscritto in forma matriciale nel modo seguente:
+
+$$Y=X \cdot \boldsymbol{\beta} + \epsilon .$$
+**Dati**
+
+`lf`, `rf`, `lh`, `rh` e `t` sono matrici che contengono nella prima colonna i tempi di inizio dei task motori (in secondi), ciascun task ha una durata pari a  12s che in termini di numero di acquisizioni di immagini corrisponde a 16 scan (la risonanza magnetica acquisisce un'immagine ogni 0.72s).
+
+Il vettori `onsets` e `dur` contengono rispettivamente i tempi di inizio e le durate dei task in numero di immagini acquisite (aggiungiamo +1 a tutti i tempi in onsets per tenere conto del fatto che la prima immagine è acquisita al tempo 0).
+
+La matrice `dataMatrix` contiene per colonna le serie temporali dei voxel del soggetto in esame, la matrice `coord_X` contiene per colonna le coordinate x, y, z nell'array 4D dei voxel del soggetto numero *X*.
+
+Con il comando *fmri.stimulus* creiamo la funzione di risposta attesa allo stimolo dei task motori, supponiamo che sia la stessa per tutti i voxel ( c'è la possibilità di scegliere tra diversi tipi di funzione e cambiare il valore dei parametri ?? ).
+
+Definiamo la `design matrix` con la funzione *fmri.design*, `order` è il grado del termine polinomiale di drift (2 è il valore di default).
+```{r DATI}
 lf=read.table("./tfMRI_MOTOR_LR/lf_100206.txt", sep="\t") 
 rf=read.table("./tfMRI_MOTOR_LR/rf_100206.txt", sep="\t")
 rh=read.table("./tfMRI_MOTOR_LR/rh_100206.txt", sep="\t")
 lh=read.table("./tfMRI_MOTOR_LR/lh_100206.txt", sep="\t")
 t=read.table("./tfMRI_MOTOR_LR/t_100206.txt", sep="\t")
 
-#Tempo di inizio e durata degli stimoli (in numero di scan) -> abbiamo 5 diversi stimoli
-onsets_lf=c(ceiling(lf[1,1]/0.72), ceiling(lf[2,1]/0.72))
-onsets_rf=c(ceiling(rf[1,1]/0.72), ceiling(rf[2,1]/0.72))
-onsets_rh=c(ceiling(rh[1,1]/0.72), ceiling(rh[2,1]/0.72))
-onsets_lh=c(ceiling(lh[1,1]/0.72), ceiling(lh[2,1]/0.72))
-onsets_t=c(ceiling(t[1,1]/0.72), ceiling(t[2,1]/0.72))
-dur=c(16,16)
+thresh = 0.001
 
-#Risposta attesa per ciascuno stimolo
-hrf_lf=fmri.stimulus(scans = 284,  onsets=onsets_lf, durations = dur)
-hrf_rf=fmri.stimulus(scans = 284,  onsets=onsets_rf, durations = dur)
-hrf_rh=fmri.stimulus(scans = 284,  onsets=onsets_rh, durations = dur)
-hrf_lh=fmri.stimulus(scans = 284,  onsets=onsets_lh, durations = dur)
-hrf_t=fmri.stimulus(scans = 284,  onsets=onsets_t, durations = dur)
+#Tempi di inizio e durata degli stimoli (in numero di immagini)
+onsets=c((ceiling(lf[1,1]/0.72)+1), (ceiling(lf[2,1]/0.72)+1),
+         (ceiling(rf[1,1]/0.72)+1), (ceiling(rf[2,1]/0.72)+1),
+         (ceiling(rh[1,1]/0.72)+1), (ceiling(rh[2,1]/0.72)+1),
+         (ceiling(lh[1,1]/0.72)+1), (ceiling(lh[2,1]/0.72)+1),
+         (ceiling(t[1,1]/0.72)+1), (ceiling(t[2,1]/0.72)+1))
+dur=rep(16, 10)
+
+#Risposta attesa agli stimoli (supponiamo che la funzione di risposta sia la stessa per tutti i voxel)
+hrf=fmri.stimulus(scans = 284,  onsets=onsets, durations = dur)
+
+hrf_df=as.data.frame(hrf)
+index=1:length(hrf)
+ggplot(hrf_df) +
+  geom_line(aes(index, hrf)) +
+  ggtitle("Funzione di risposta attesa")+
+ theme(plot.title = element_text(hjust = 0.5))
 
 #design matrix 
-x=fmri.design(cbind(hrf_lf, hrf_rf , hrf_rh , hrf_lh , hrf_t), order = 2)
+x=fmri.design(hrf, order = 2)
 
 load("~/TESI/tfMRI_MOTOR_LR/sub_100206.RData")
-dataMatrix=ar_100206[-c(1,2,3),1:115000]
-#la matrice dataMatrix contiene per colonna le serie temporali relative ai primi 115000 voxel del soggetto 100206
+dataMatrix=ar_100206[-c(1,2,3),]
+#dataMatrix contiene per colonna le time series del soggetto 100206
+coord_100206 = as.matrix(ar_100206[c(1,2,3), ])
+#coord_100206 contiene per colonna le coordinate x, y, z nell'array 4D dei voxel del sogetto 100206
+rm(ar_100206) #rimuovo per risparmiare spazio
 
-#Regressione lineare con fattori in ingresso = design matrix, fattore in uscita = serie temporale di ciascun voxel 
-lms=apply(dataMatrix, 2, function(y) lm(y~ 0+ x))
-summaries1=lapply(lms, summary)
-save(summaries1, file = "./tfMRI_MOTOR_LR/summaries1.RData")
+load("~/TESI/tfMRI_MOTOR_LR/sub_100307.RData")
+# dataMatrix=ar_100307[-c(1,2,3),]
+#dataMatrix contiene per colonna le time series del soggetto 100307
+coord_100307 = as.matrix(ar_100307[c(1,2,3) , ])
+#coord_100307 contiene per colonna le coordinate x, y, z nell'array 4D dei voxel del sogetto 100307
+rm(ar_100307) #rimuovo per risparmiare spazio
 
-dataMatrix=ar_100206[-c(1,2,3),115001:230307]
-lms=apply(dataMatrix, 2, function(y) lm(y~ 0+ x))
-summaries2=lapply(lms, summary)
-save(summaries2, file = "./tfMRI_MOTOR_LR/summaries2.RData")
+
+load("~/TESI/tfMRI_MOTOR_LR/sub_100408.RData")
+# dataMatrix=ar_100408[-c(1,2,3),]
+#dataMatrix contiene per colonna le time series del soggetto 100408
+coord_100408 = as.matrix(ar_100408[c(1,2,3) , ])
+#coord_100408 contiene per colonna le coordinate x, y, z nell'array 4D dei voxel del sogetto 100408
+rm(ar_100408) #rimuovo per risparmiare spazio
+
+load("~/TESI/tfMRI_MOTOR_LR/sub_100610.RData")
+# dataMatrix=ar_100610[-c(1,2,3),]
+#dataMatrix contiene per colonna le time series del soggetto 100610
+coord_100610 = as.matrix(ar_100610[c(1,2,3) , ])
+#coord_100610 contiene per colonna le coordinate x, y, z nell'array 4D dei voxel del sogetto 100610
+rm(ar_100610) #rimuovo per risparmiare spazio
+
+load("~/TESI/tfMRI_MOTOR_LR/sub_101006.RData")
+# dataMatrix=ar_101006[-c(1,2,3),]
+#dataMatrix contiene per colonna le time series del soggetto 101006
+coord_101006 = as.matrix(ar_101006[c(1,2,3) , ])
+#coord_101006 contiene per colonna le coordinate x, y, z nell'array 4D dei voxel del sogetto 101006
+rm(ar_101006) #rimuovo per risparmiare spazio
+
 ```
 
-```{r template brain}
+**Regressione lineare con fattori in ingresso = design matrix e fattore in uscita = serie temporale del voxel**
+
+Per ogni voxel, eseguiamo la regressione lineare con fattori in ingresso le colonne di `x` e fattore in uscita la serie temporale del voxel; salviamo la parte del *summary* relativa al coefficiente $\beta$, che rappresenta l'intensità della funzione di risposta agli stimoli, in `val`.
+Al termine del ciclo, `val` è una matrice di *numero di voxel* righe (una per voxel) e $4$ colonne,
+
+- nella prima colonna si trovano i valori del coefficiente $\beta$ per ciascun voxel,
+
+- nella seconda colonna l'errore standard del coefficiente,
+
+- nella terza colonna il valore della statistica t,
+
+- nella quarta colonna il valore del p-value del t-test.
+
+I voxel per cui il p-value è inferiore alla soglia `thresh` sono quelli che si sono attivati in risposta agli stimoli dei task motori secondo il modello GLM.
+
+```{r eval=FALSE, include=TRUE}
+val=c()
+for (i in 1 : dim(dataMatrix)[2]) {
+  lm=lm(dataMatrix[,i]~ 0 + x)
+  val=rbind(val, summary(lm)$coefficients[1,])
+}
+
+#save(val, file = "./tfMRI_MOTOR_LR/val_101006.RData")
+```
+
+**Random effect analysis**
+
+Carichiamo la matrici `val` di tutti i soggetti esaminati, quello che maggiormente ci interessa è la quarta colonna che relativa ai p-value.
+Uniamo le coordinate dei voxel di tutti i soggetti con p-value inferiore alla soglia `thresh` nella matrice `ind_GLM` e rimuoviamo eventuali ripetizioni con la funzione *unique*; adesso la matrice `ind_GLM` contiene esattamente le coordinate di tutti i voxel per cui il p-value è inferiore alla soglia `thresh`, ovvero che si sono attivati, per almeno uno dei soggetti in esame.
+```{r eval=FALSE, include=TRUE}
+load("~/TESI/tfMRI_MOTOR_LR/val.RData")
+p.val_100206=val[,4]
+rm(val)
+
+load("~/TESI/tfMRI_MOTOR_LR/val_100307.RData")
+p.val_100307=val[,4]
+rm(val)
+
+load("~/TESI/tfMRI_MOTOR_LR/val_100408.RData")
+p.val_100408=val[,4]
+rm(val)
+
+load("~/TESI/tfMRI_MOTOR_LR/val_100610.RData")
+p.val_100610=val[,4]
+rm(val)
+
+load("~/TESI/tfMRI_MOTOR_LR/val_101006.RData")
+p.val_101006=val[,4]
+rm(val)
+
+ind_GLM=coord_100206[, which(p.val_100206<thresh)]
+ind_GLM=cbind(ind_GLM, coord_100307[, which(p.val_100307<thresh)])
+ind_GLM=cbind(ind_GLM, coord_100408[, which(p.val_100408<thresh)])
+ind_GLM=cbind(ind_GLM, coord_100610[, which(p.val_100610<thresh)])
+ind_GLM=cbind(ind_GLM, coord_101006[, which(p.val_101006<thresh)])
+dim(ind_GLM)[2]
+ind_GLM = unique(ind_GLM, MARGIN = 2) #rimuoviamo i voxel contati più volte
+dim(ind_GLM)[2] # dalla riduzione di dimensione possiamo capire approssimativamente quanti voxel si sono attivati per più di un soggetto secondo il modello GLM 
+```
+
+Cerchiamo di individuare i voxel che, tenendo conto dei risultati ottenuti per ogni singolo soggetto, "realmente" si sono attivati in risposta agli stimoli dei task motori.
+
+Per ciascun voxel in `ind_GLM` eseguiamo una media dei p-value ottenuti dai soggetti relativamente a quel voxel, salviamo il risultato nel vettore `mean_GLM`.
+
+PROBLEMA: non tutti i voxel in `ind_GLM` esistono per tutti i soggetti, ovvero ci sono dei voxel che per alcuni soggetti fanno parte dello sfondo dell'immagine mentre per altri sono veri punti del cervello.
+Il vettore `l_GLM` tiene traccia, per ogni voxel, del numero di soggetti per cui il voxel appartiene veramente al cervello e quindi per cui abbiamo un valore del p-value.
+
+```{r eval=FALSE, include=TRUE}
+mean_GLM=c()
+l_GLM=c()
+#ttest.out=c()
+for (i in 1:dim(ind_GLM)[2]) {
+  v=c(p.val_100206[which(colnames(ind_GLM)[i]==colnames(coord_100206)) ],
+      p.val_100307[which(colnames(ind_GLM)[i]==colnames(coord_100307)) ],
+      p.val_100408[which(colnames(ind_GLM)[i]==colnames(coord_100408)) ],
+      p.val_100610[which(colnames(ind_GLM)[i]==colnames(coord_100610)) ],
+      p.val_101006[which(colnames(ind_GLM)[i]==colnames(coord_101006)) ]) 
+  l_GLM=c(l_GLM, length(v))
+  mean_GLM=c(mean_GLM, mean(v))
+  #ttest.out=rbind(ttest.out, c(t.test(v, alternative = "greater", mu=0)$statistic, t.test(v, alternative = "greater", mu=0)$p.value ))
+}
+
+# save(l_GLM, file = "./tfMRI_MOTOR_LR/l_GLM_thresh=0.001.RData")
+# save(mean_GLM, file = "./tfMRI_MOTOR_LR/mean_GLM_thresh=0.001.RData")
+# load("~/TESI/tfMRI_MOTOR_LR/l_GLM_thresh=0.001.RData")
+# load("~/TESI/tfMRI_MOTOR_LR/mean_GLM_thresh=0.001.RData")
+
+length(which(mean_GLM<thresh)) #numero di voxel "realmente" attivi secondo il modello GLM
+#length(which(mean_act>act_thresh)) #numero di voxel "realmente" attivi secondo il modello Granger
+match=match(colnames(ind_act[,which(mean_act>act_thresh)]), colnames(ind_GLM[,which(mean_GLM<thresh)]), nomatch=0)
+#numero di voxel "realmente" attivi sia secondo il GLM che secondo il modello Granger
+
+mean_GLM_5=mean_GLM[which(l_GLM==5)]
+length(which(mean_GLM_5<thresh)) #numero di voxel veramente attivi secondo il GLM che esistono per tutti e 5 i soggetti esaminati
+mean_GLM_1=mean_GLM[which(l_GLM==1)]
+length(which(mean_GLM_1<thresh)) #numero di voxel veramente attivati secondo il GLM che esistono per uno solo del soggetti esaminati (LA MAGGIOR PARTE)
+```
+
+Troviamo circa 43000 voxel attivi per almeno uno dei soggetti con valore della soglia *thresh=0.001*.
+Risultano 469 voxel "realmente" attivi ovvero per cui la media dei p-value è inferiore alla soglia, di questi la maggior parte non esiste per uno o più soggetti.
+Il numero di match con le attivazioni del modello Granger è 55.
+
+# Rappresentazione grafica delle attivazioni su un cervello
+
+Salviamo con il nome di `nii_1` l'immagine 3D del cervello (del soggetto 100206) al tempo 0, la utilizzeremo come immagine di sfondo per rappresentare i voxel attivati.
+```{r 100206, eval=FALSE, include=FALSE}
 nii = readNIfTI("./tfMRI_MOTOR_LR/tfMRI_MOTOR_LR_100206.nii")
 nii_1=nii[,,,1]
 save(nii_1, file = "./tfMRI_MOTOR_LR/nii_1.RData")
+rm(nii)
 #TROVARE UN ATLANTE?
 ```
 
-```{r sub_100206}
-load("~/TESI/tfMRI_MOTOR_LR/summaries1.RData")
-load("~/TESI/tfMRI_MOTOR_LR/summaries2.RData")
+Consideriamo due copie della stessa immagine che chiamiamo `nii_1` e `nii_off`, poniamo uguali a 0 i valori relativi ai voxel che NON si sono attivati secondo il GLM in nii_off. 
+Utilizziamo `nii_1` come sfondo in scala di grigi, a questo sovrapponiamo l'immagine `nii_off` a colori  specificando l'opzioni *NA.y=TRUE* che assegna ad ogni voxel con valore 0 valore *NA*, in questo modo gli unici punti di `nii_off` che vengono raffigurati (a colori) sono quelli relativi ai voxel che si sono attivati secondo il GLM.
+```{r eval=FALSE, include=FALSE}
 load("~/TESI/tfMRI_MOTOR_LR/sub_100206.RData")
-coefs1=lapply(summaries1, function(x) x$coefficients)
-coefs2=lapply(summaries2, function(x) x$coefficients)
-
-#lf
-lf_vals1=lapply( coefs1, function(x) x[1,])
-lf_est1=lapply( lf_vals1, function(x) x[1])
-lf_pvals1=lapply( lf_vals1, function(x) x[4])
-lf_act1=which(lf_pvals1<0.001)
-
-lf_vals2=lapply( coefs2, function(x) x[1,])
-lf_est2=lapply( lf_vals2, function(x) x[1])
-lf_pvals2=lapply( lf_vals2, function(x) x[4])
-lf_act2=which(lf_pvals2<0.001) 
-lf_act2=lf_act2 + 115000 
-#sommo 115000 perchè i coefficienti sono relativi ai voxel dal 115001 in poi
-
-lf_act=c(lf_act1, lf_act2) 
-#sono le colonne della matrice ar_100206 corrispondenti ai voxel che si sono attivati in risposta a lf
-
-#Rappresentazione grafica delle attivazioni su un cervello
 load("~/TESI/tfMRI_MOTOR_LR/nii_1.RData")
-nii_lf=nii_1
-
-lf_ar=t(ar_100206[1:3,-lf_act]) 
-#sono le coordinate x, y, z nell'array 4D dei voxel che NON si sono attivati in risposta a lf 
-nii_lf[lf_ar]=0
-#usiamo come sfondo l'immagine del cervello ad un tempo fissato (il tempo 1) in scala di grigi ed a questa sovrapponiamo la stessa immagine, in cui ai voxel non attivati assegnamo valore NA, a colori
-overlay(nii_1, nii_lf, NA.y=TRUE)
-overlay(nii_1, nii_lf, plane="coronal", NA.y=TRUE)
-
-#rf
-rf_vals1=lapply( coefs1, function(x) x[2,])
-rf_est1=lapply( rf_vals1, function(x) x[1])
-rf_pvals1=lapply( rf_vals1, function(x) x[4])
-rf_act1=which(rf_pvals1<0.001)
-
-rf_vals2=lapply( coefs2, function(x) x[2,])
-rf_est2=lapply( rf_vals2, function(x) x[1])
-rf_pvals2=lapply( rf_vals2, function(x) x[4])
-rf_act2=which(rf_pvals2<0.001) 
-rf_act2=rf_act2 + 115000 
-#sommo 115000 perchè i coefficienti sono relativi ai voxel dal 115001 in poi
-
-rf_act=c(rf_act1, rf_act2) 
-#sono le colonne della matrice ar_100206 corrispondenti ai voxel che si sono attivati in risposta a rf
-
-#Rappresentazione grafica delle attivazioni su un cervello
-nii_rf=nii_1
-
-rf_ar=t(ar_100206[1:3,-rf_act]) 
-#sono le coordinate x, y, z nell'array 4D dei voxel che NON si sono attivati in risposta a rf 
-nii_rf[rf_ar]=0
-#usiamo come sfondo l'immagine del cervello ad un tempo fissato (il tempo 1) in scala di grigi ed a questa sovrapponiamo la stessa immagine, in cui ai voxel non attivati assegnamo valore NA, a colori 
-overlay(nii_1, nii_rf, NA.y=TRUE)
-overlay(nii_1, nii_rf, plane="coronal", NA.y=TRUE)
-
-#rh
-rh_vals1=lapply( coefs1, function(x) x[3,])
-rh_est1=lapply( rh_vals1, function(x) x[1])
-rh_pvals1=lapply( rh_vals1, function(x) x[4])
-rh_act1=which(rh_pvals1<0.001)
-
-rh_vals2=lapply( coefs2, function(x) x[3,])
-rh_est2=lapply( rh_vals2, function(x) x[1])
-rh_pvals2=lapply( rh_vals2, function(x) x[4])
-rh_act2=which(rh_pvals2<0.001) 
-rh_act2=rh_act2 + 115000 
-#sommo 115000 perchè i coefficienti sono relativi ai voxel dal 115001 in poi
-
-rh_act=c(rh_act1, rh_act2) 
-#sono le colonne della matrice ar_100206 corrispondenti ai voxel che si sono attivati  in risposta a rh
-
-#Rappresentazione grafica delle attivazioni su un cervello
-nii_rh=nii_1
-
-rh_ar=t(ar_100206[1:3,-rh_act]) 
-#sono le coordinate x, y, z nell'array 4D dei voxel che NON si sono attivati in risposta a rh
-nii_rh[rh_ar]=0
-#usiamo come sfondo l'immagine del cervello ad un tempo fissato (il tempo 1) in scala di grigi ed a questa sovrapponiamo la stessa immagine, in cui ai voxel non attivati assegnamo valore NA, a colori 
-overlay(nii_1, nii_rh, NA.y=TRUE)
-overlay(nii_1, nii_rh, plane="coronal", NA.y=TRUE)
-
-#lh
-lh_vals1=lapply( coefs1, function(x) x[4,])
-lh_est1=lapply( lh_vals1, function(x) x[1])
-lh_pvals1=lapply( lh_vals1, function(x) x[4])
-lh_act1=which(lh_pvals1<0.001)
-
-lh_vals2=lapply( coefs2, function(x) x[4,])
-lh_est2=lapply( lh_vals2, function(x) x[1])
-lh_pvals2=lapply( lh_vals2, function(x) x[4])
-lh_act2=which(lh_pvals2<0.001) 
-lh_act2=lh_act2 + 115000 
-#sommo 115000 perchè i coefficienti sono relativi ai voxel dal 115001 in poi
-
-lh_act=c(lh_act1, lh_act2) 
-#sono le colonne della matrice ar_100206 corrispondenti ai voxel che si sono attivati in risposta a lh
-
-#Rappresentazione grafica delle attivazioni su un cervello
-nii_lh=nii_1
-
-lh_ar=t(ar_100206[1:3,-lh_act]) 
-#sono le coordinate x, y, z nell'array 4D dei voxel che NON si sono attivati in risposta a lh
-nii_lh[lh_ar]=0
-#usiamo come sfondo l'immagine del cervello ad un tempo fissato (il tempo 1) in scala di grigi ed a questa sovrapponiamo la stessa immagine, in cui ai voxel non attivati assegnamo valore NA, a colori 
-overlay(nii_1, nii_lh, NA.y=TRUE)
-overlay(nii_1, nii_lh, plane="coronal", NA.y=TRUE)
-
-#t
-t_vals1=lapply( coefs1, function(x) x[5,])
-t_est1=lapply( t_vals1, function(x) x[1])
-t_pvals1=lapply( t_vals1, function(x) x[4])
-t_act1=which(t_pvals1<0.001)
-
-t_vals2=lapply( coefs2, function(x) x[5,])
-t_est2=lapply( t_vals2, function(x) x[1])
-t_pvals2=lapply( t_vals2, function(x) x[4])
-t_act2=which(t_pvals2<0.001) 
-t_act2=t_act2 + 115000 
-#sommo 115000 perchè i coefficienti sono relativi ai voxel dal 115001 in poi
-
-t_act=c(t_act1, t_act2) 
-#sono le colonne della matrice ar_100206 corrispondenti ai voxel che si sono attivati in risposta a t
-
-#Rappresentazione grafica delle attivazioni su un cervello
-nii_t=nii_1
-
-t_ar=t(ar_100206[1:3,-t_act]) 
-#sono le coordinate x, y, z nell'array 4D dei voxel che NON si sono attivati in risposta a t
-nii_t[t_ar]=0
-#usiamo come sfondo l'immagine del cervello ad un tempo fissato (il tempo 1) in scala di grigi ed a questa sovrapponiamo la stessa immagine, in cui ai voxel non attivati assegnamo valore NA, a colori
-overlay(nii_1, nii_t, NA.y=TRUE)
-overlay(nii_1, nii_t, plane="coronal", NA.y=TRUE)
+nii_off=nii_1
+nii_off[t(ar_100206[1:3,-which(p.val_100206<thresh)]) ]=0 #poniamo uguali a 0 i voxel che NON si sono attivati secondo il GLM
+#usiamo come sfondo l'immagine del cervello ad un tempo fissato (il tempo 0) in scala di grigi ed a questa sovrapponiamo la stessa immagine, in cui ai voxel non attivati assegnamo valore NA, a colori
+overlay(nii_1, nii_off, NA.y=TRUE)
+overlay(nii_1, nii_off, plane="coronal", NA.y=TRUE)
 ```
-
